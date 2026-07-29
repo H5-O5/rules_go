@@ -228,33 +228,29 @@ go_sdk.download(
 }
 
 func TestPatch(t *testing.T) {
-	origWorkspaceData, err := ioutil.ReadFile("WORKSPACE")
+	origModuleData, err := ioutil.ReadFile("MODULE.bazel")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	i := bytes.Index(origWorkspaceData, []byte("go_rules_dependencies()"))
+	i := bytes.Index(origModuleData, []byte("_host_go_sdk = use_extension"))
 	if i < 0 {
-		t.Fatal("could not find call to go_rules_dependencies()")
+		t.Fatal("could not find the default Go SDK declaration")
 	}
 
 	buf := &bytes.Buffer{}
-	buf.Write(origWorkspaceData[:i])
+	buf.Write(origModuleData[:i])
+	buf.WriteString("go_sdk = use_extension(\"@io_bazel_rules_go//go:extensions.bzl\", \"go_sdk\")\n")
 	buf.WriteString(`
-load("@io_bazel_rules_go//go:deps.bzl", "go_download_sdk")
-
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk_patched",
 	version = "1.21.1",
     patch_strip = 1,
     patches = ["//:test.patch"],
 )
 
-go_rules_dependencies()
-
-go_register_toolchains()
 `)
-	if err := ioutil.WriteFile("WORKSPACE", buf.Bytes(), 0666); err != nil {
+	if err := ioutil.WriteFile("MODULE.bazel", buf.Bytes(), 0666); err != nil {
 		t.Fatal(err)
 	}
 
@@ -277,8 +273,8 @@ index 5306bcb..d110a19 100644
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := ioutil.WriteFile("WORKSPACE", origWorkspaceData, 0666); err != nil {
-			t.Errorf("error restoring WORKSPACE: %v", err)
+		if err := ioutil.WriteFile("MODULE.bazel", origModuleData, 0666); err != nil {
+			t.Errorf("error restoring MODULE.bazel: %v", err)
 		}
 	}()
 
@@ -300,37 +296,33 @@ func TestExperimentalBuildCompilerFromSourceDoesNotRequireToolchainBuildSetting(
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			origWorkspaceData, err := ioutil.ReadFile("WORKSPACE")
+			origModuleData, err := ioutil.ReadFile("MODULE.bazel")
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			i := bytes.Index(origWorkspaceData, []byte("go_rules_dependencies()"))
+			i := bytes.Index(origModuleData, []byte("_host_go_sdk = use_extension"))
 			if i < 0 {
-				t.Fatal("could not find call to go_rules_dependencies()")
+				t.Fatal("could not find the default Go SDK declaration")
 			}
 
 			buf := &bytes.Buffer{}
-			buf.Write(origWorkspaceData[:i])
+			buf.Write(origModuleData[:i])
+			buf.WriteString("go_sdk = use_extension(\"@io_bazel_rules_go//go:extensions.bzl\", \"go_sdk\")\n")
 			buf.WriteString(`
-load("@io_bazel_rules_go//go:deps.bzl", "go_download_sdk")
-
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk",
     version = "1.26.0",
     ` + test.bootstrapAttr + `
 )
 
-go_rules_dependencies()
-
-go_register_toolchains()
 `)
-			if err := ioutil.WriteFile("WORKSPACE", buf.Bytes(), 0666); err != nil {
+			if err := ioutil.WriteFile("MODULE.bazel", buf.Bytes(), 0666); err != nil {
 				t.Fatal(err)
 			}
 			defer func() {
-				if err := ioutil.WriteFile("WORKSPACE", origWorkspaceData, 0666); err != nil {
-					t.Errorf("error restoring WORKSPACE: %v", err)
+				if err := ioutil.WriteFile("MODULE.bazel", origModuleData, 0666); err != nil {
+					t.Errorf("error restoring MODULE.bazel: %v", err)
 				}
 			}()
 
@@ -350,48 +342,45 @@ go_register_toolchains()
 			}
 
 			if bytes.Contains(toolchainsBuildData, []byte(`sdk_source = `)) {
-				t.Fatalf("go_sdk_toolchains should not require an sdk_source build setting when go_download_sdk(%s):\n%s", test.bootstrapAttr, toolchainsBuildData)
+				t.Fatalf("go_sdk_toolchains should not require an sdk_source build setting when go_sdk.download(%s):\n%s", test.bootstrapAttr, toolchainsBuildData)
 			}
 		})
 	}
 }
 
 func TestExperimentalBootstrapWithRulesShellToolchains(t *testing.T) {
-	origWorkspaceData, err := ioutil.ReadFile("WORKSPACE")
+	origModuleData, err := ioutil.ReadFile("MODULE.bazel")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	i := bytes.Index(origWorkspaceData, []byte("go_rules_dependencies()"))
+	i := bytes.Index(origModuleData, []byte("_host_go_sdk = use_extension"))
 	if i < 0 {
-		t.Fatal("could not find call to go_rules_dependencies()")
+		t.Fatal("could not find the default Go SDK declaration")
 	}
 
 	buf := &bytes.Buffer{}
-	buf.Write(origWorkspaceData[:i])
+	buf.Write(origModuleData[:i])
+	buf.WriteString("go_sdk = use_extension(\"@io_bazel_rules_go//go:extensions.bzl\", \"go_sdk\")\n")
 	buf.WriteString(`
-load("@io_bazel_rules_go//go:deps.bzl", "go_download_sdk")
-
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk",
     version = "1.26.0",
     experimental_build_compiler_from_source = True,
 )
 
-go_rules_dependencies()
 
 load("@rules_shell//shell:repositories.bzl", "rules_shell_toolchains")
 
 rules_shell_toolchains()
 
-go_register_toolchains()
 `)
-	if err := ioutil.WriteFile("WORKSPACE", buf.Bytes(), 0666); err != nil {
+	if err := ioutil.WriteFile("MODULE.bazel", buf.Bytes(), 0666); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := ioutil.WriteFile("WORKSPACE", origWorkspaceData, 0666); err != nil {
-			t.Errorf("error restoring WORKSPACE: %v", err)
+		if err := ioutil.WriteFile("MODULE.bazel", origModuleData, 0666); err != nil {
+			t.Errorf("error restoring MODULE.bazel: %v", err)
 		}
 	}()
 
@@ -404,37 +393,33 @@ go_register_toolchains()
 }
 
 func TestExperimentalBootstrapHostCompatibleSDKRoot(t *testing.T) {
-	origWorkspaceData, err := ioutil.ReadFile("WORKSPACE")
+	origModuleData, err := ioutil.ReadFile("MODULE.bazel")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	i := bytes.Index(origWorkspaceData, []byte("go_rules_dependencies()"))
+	i := bytes.Index(origModuleData, []byte("_host_go_sdk = use_extension"))
 	if i < 0 {
-		t.Fatal("could not find call to go_rules_dependencies()")
+		t.Fatal("could not find the default Go SDK declaration")
 	}
 
 	buf := &bytes.Buffer{}
-	buf.Write(origWorkspaceData[:i])
+	buf.Write(origModuleData[:i])
+	buf.WriteString("go_sdk = use_extension(\"@io_bazel_rules_go//go:extensions.bzl\", \"go_sdk\")\n")
 	buf.WriteString(`
-load("@io_bazel_rules_go//go:deps.bzl", "go_download_sdk")
-
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk",
     version = "1.26.0",
     experimental_build_compiler_from_source = True,
 )
 
-go_rules_dependencies()
-
-go_register_toolchains()
 `)
-	if err := ioutil.WriteFile("WORKSPACE", buf.Bytes(), 0666); err != nil {
+	if err := ioutil.WriteFile("MODULE.bazel", buf.Bytes(), 0666); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := ioutil.WriteFile("WORKSPACE", origWorkspaceData, 0666); err != nil {
-			t.Errorf("error restoring WORKSPACE: %v", err)
+		if err := ioutil.WriteFile("MODULE.bazel", origModuleData, 0666); err != nil {
+			t.Errorf("error restoring MODULE.bazel: %v", err)
 		}
 	}()
 
@@ -489,14 +474,14 @@ go_register_toolchains()
 }
 
 func TestCustomGoSDKHostCompatibleLabelBackwardCompatibility(t *testing.T) {
-	origWorkspaceData, err := ioutil.ReadFile("WORKSPACE")
+	origModuleData, err := ioutil.ReadFile("MODULE.bazel")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	i := bytes.Index(origWorkspaceData, []byte("go_rules_dependencies()"))
+	i := bytes.Index(origModuleData, []byte("_host_go_sdk = use_extension"))
 	if i < 0 {
-		t.Fatal("could not find call to go_rules_dependencies()")
+		t.Fatal("could not find the default Go SDK declaration")
 	}
 
 	customSDKPath, err := filepath.Abs("custom_go_sdk")
@@ -516,7 +501,8 @@ func TestCustomGoSDKHostCompatibleLabelBackwardCompatibility(t *testing.T) {
 	}
 
 	buf := &bytes.Buffer{}
-	buf.Write(origWorkspaceData[:i])
+	buf.Write(origModuleData[:i])
+	buf.WriteString("go_sdk = use_extension(\"@io_bazel_rules_go//go:extensions.bzl\", \"go_sdk\")\n")
 	buf.WriteString(`
 load("@bazel_tools//tools/build_defs/repo:local.bzl", "new_local_repository")
 
@@ -530,14 +516,13 @@ exports_files(["ROOT"])
 """,
 )
 
-go_rules_dependencies()
 `)
-	if err := ioutil.WriteFile("WORKSPACE", buf.Bytes(), 0666); err != nil {
+	if err := ioutil.WriteFile("MODULE.bazel", buf.Bytes(), 0666); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := ioutil.WriteFile("WORKSPACE", origWorkspaceData, 0666); err != nil {
-			t.Errorf("error restoring WORKSPACE: %v", err)
+		if err := ioutil.WriteFile("MODULE.bazel", origModuleData, 0666); err != nil {
+			t.Errorf("error restoring MODULE.bazel: %v", err)
 		}
 	}()
 
