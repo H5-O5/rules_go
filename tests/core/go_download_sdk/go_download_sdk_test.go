@@ -83,28 +83,23 @@ func Test(t *testing.T) {
 		{
 			desc: "version",
 			rule: `
-load("@io_bazel_rules_go//go:deps.bzl", "go_download_sdk")
-
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk",
     version = "1.18",
 )
-
 `,
 			optToWantVersion: map[string]string{"": "go1.18"},
 		},
 		{
 			desc: "custom_archives",
 			rule: `
-load("@io_bazel_rules_go//go:deps.bzl", "go_download_sdk")
-
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk",
     sdks = {
-        "darwin_amd64": ("go1.18.darwin-amd64.tar.gz", "70bb4a066997535e346c8bfa3e0dfe250d61100b17ccc5676274642447834969"),
-        "darwin_arm64": ("go1.18.darwin-arm64.tar.gz", "9cab6123af9ffade905525d79fc9ee76651e716c85f1f215872b5f2976782480"),
-        "linux_amd64": ("go1.18.linux-amd64.tar.gz", "e85278e98f57cdb150fe8409e6e5df5343ecb13cebf03a5d5ff12bd55a80264f"),
-        "windows_amd64": ("go1.18.windows-amd64.zip", "65c5c0c709a7ca1b357091b10b795b439d8b50e579d3893edab4c7e9b384f435"),
+        "darwin_amd64": ["go1.18.darwin-amd64.tar.gz", "70bb4a066997535e346c8bfa3e0dfe250d61100b17ccc5676274642447834969"],
+        "darwin_arm64": ["go1.18.darwin-arm64.tar.gz", "9cab6123af9ffade905525d79fc9ee76651e716c85f1f215872b5f2976782480"],
+        "linux_amd64": ["go1.18.linux-amd64.tar.gz", "e85278e98f57cdb150fe8409e6e5df5343ecb13cebf03a5d5ff12bd55a80264f"],
+        "windows_amd64": ["go1.18.windows-amd64.zip", "65c5c0c709a7ca1b357091b10b795b439d8b50e579d3893edab4c7e9b384f435"],
     },
 )
 `,
@@ -113,17 +108,15 @@ go_download_sdk(
 		{
 			desc: "multiple_sdks",
 			rule: `
-load("@io_bazel_rules_go//go:deps.bzl", "go_download_sdk", "go_host_sdk")
-
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk",
     version = "1.18",
 )
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk_1_19",
     version = "1.19",
 )
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk_1_19_1",
     version = "1.19.1",
 )
@@ -141,38 +134,35 @@ go_download_sdk(
 			// Cover workaround for #2771.
 			desc: "windows_zip",
 			rule: `
-load("@io_bazel_rules_go//go:deps.bzl", "go_download_sdk")
-
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk",
-	goarch = "amd64",
-	goos = "windows",
-	version = "1.20.4",
+    goarch = "amd64",
+    goos = "windows",
+    version = "1.20.4",
 )
+use_repo(go_sdk, "go_sdk")
 `,
 			fetchOnly: "@go_sdk//:BUILD.bazel",
 		},
 		{
 			desc: "multiple_sdks_by_name",
 			rule: `
-load("@io_bazel_rules_go//go:deps.bzl", "go_download_sdk", "go_host_sdk")
-
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk",
     version = "1.23.5",
 )
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk_1_18",
     version = "1.18",
 )
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk_1_18_1",
     version = "1.18.1",
 )
-go_download_sdk(
+go_sdk.download(
     name = "go_sdk_with_experiments",
     version = "1.23.5",
-	experiments = ["rangefunc"],
+    experiments = ["rangefunc"],
 )
 `,
 			optToWantVersion: map[string]string{
@@ -185,30 +175,29 @@ go_download_sdk(
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			origWorkspaceData, err := ioutil.ReadFile("WORKSPACE")
+			origModuleData, err := ioutil.ReadFile("MODULE.bazel")
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			i := bytes.Index(origWorkspaceData, []byte("go_rules_dependencies()"))
+			// Replace the SDK the test framework wraps by default with the
+			// ones declared by the test case.
+			i := bytes.Index(origModuleData, []byte("_host_go_sdk = use_extension"))
 			if i < 0 {
-				t.Fatal("could not find call to go_rules_dependencies()")
+				t.Fatal("could not find the default Go SDK declaration")
 			}
 
 			buf := &bytes.Buffer{}
-			buf.Write(origWorkspaceData[:i])
-			buf.WriteString(test.rule)
-			buf.WriteString(`
-go_rules_dependencies()
-
-go_register_toolchains()
+			buf.Write(origModuleData[:i])
+			buf.WriteString(`go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
 `)
-			if err := ioutil.WriteFile("WORKSPACE", buf.Bytes(), 0666); err != nil {
+			buf.WriteString(test.rule)
+			if err := ioutil.WriteFile("MODULE.bazel", buf.Bytes(), 0666); err != nil {
 				t.Fatal(err)
 			}
 			defer func() {
-				if err := ioutil.WriteFile("WORKSPACE", origWorkspaceData, 0666); err != nil {
-					t.Errorf("error restoring WORKSPACE: %v", err)
+				if err := ioutil.WriteFile("MODULE.bazel", origModuleData, 0666); err != nil {
+					t.Errorf("error restoring MODULE.bazel: %v", err)
 				}
 			}()
 
