@@ -315,7 +315,7 @@ go_sdk.download(
     version = "1.26.0",
     ` + test.bootstrapAttr + `
 )
-
+use_repo(go_sdk, "go_sdk_toolchains")
 `)
 			if err := ioutil.WriteFile("MODULE.bazel", buf.Bytes(), 0666); err != nil {
 				t.Fatal(err)
@@ -330,12 +330,13 @@ go_sdk.download(
 				t.Fatal(err)
 			}
 
-			outputBase, err := bazel_testing.BazelOutput("info", "output_base")
+			toolchainsBuildLocation, err := bazel_testing.BazelOutput("query", "--output=location", "@go_sdk_toolchains//:BUILD.bazel")
 			if err != nil {
 				t.Fatal(err)
 			}
-
-			toolchainsBuildFile := filepath.Join(strings.TrimSpace(string(outputBase)), "external", "go_sdk_toolchains", "BUILD.bazel")
+			// The repository directory is named after its canonical name, so
+			// take the path Bazel reports rather than constructing it.
+			toolchainsBuildFile, _, _ := strings.Cut(strings.TrimSpace(string(toolchainsBuildLocation)), ":")
 			toolchainsBuildData, err := os.ReadFile(toolchainsBuildFile)
 			if err != nil {
 				t.Fatalf("reading %s: %v", toolchainsBuildFile, err)
@@ -369,11 +370,7 @@ go_sdk.download(
     experimental_build_compiler_from_source = True,
 )
 
-
-load("@rules_shell//shell:repositories.bzl", "rules_shell_toolchains")
-
-rules_shell_toolchains()
-
+bazel_dep(name = "rules_shell", version = "0.3.0")
 `)
 	if err := ioutil.WriteFile("MODULE.bazel", buf.Bytes(), 0666); err != nil {
 		t.Fatal(err)
@@ -412,7 +409,7 @@ go_sdk.download(
     version = "1.26.0",
     experimental_build_compiler_from_source = True,
 )
-
+use_repo(go_sdk, "go_sdk_toolchains")
 `)
 	if err := ioutil.WriteFile("MODULE.bazel", buf.Bytes(), 0666); err != nil {
 		t.Fatal(err)
